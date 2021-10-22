@@ -1,5 +1,5 @@
 import './App.css';
-import { Component } from 'react';
+import { useState, useEffect } from 'react';
 
 import Searchbar from './Components/Searchbar/Searchbar';
 import API from './Servises/API';
@@ -15,92 +15,74 @@ const statuses = {
   REJECTED: 'rejected',
 };
 
-class App extends Component {
-  state = {
-    req: '',
-    page: 1,
-    images: [],
-    status: statuses.IDLE,
-    showModal: false,
-  };
+export default function App() {
+  const [req, setReq] = useState('');
+  const [page, setPage] = useState(1);
+  const [images, setImages] = useState([]);
+  const [status, setStatus] = useState('mount');
+  const [showModal, setShowModal] = useState(false);
+  const [modalImg, setModalImg] = useState(null);
 
-  handleSubmit = request => {
-    if (this.state.req !== request) {
-      this.setState({ req: request, page: 1 });
+  const [notLastPage, setNotLastPage] = useState(true);
+
+  const handleSubmit = request => {
+    if (req !== request) {
+      setImages([]);
+      setReq(request);
+      setPage(1);
     }
   };
 
-  componentDidUpdate(prevProps, prevState) {
-    if (prevState.req !== this.state.req) {
-      this.setState({ status: statuses.PENDING });
-      // this.setState({ page: 1 });
-      this.searchImages();
+  useEffect(() => {
+    if (status === 'mount') {
+      setStatus(statuses.IDLE);
       return;
     }
-    if (prevState.page !== this.state.page) {
-      API(this.state.req, this.state.page, this.getImages);
-      console.log('increase page');
-    }
-    if ((this.state.page > 1) & !this.state.showModal) {
-      window.scrollTo({
-        top: document.documentElement.scrollHeight,
-        behavior: 'smooth',
-      });
-    } else return;
-  }
 
-  searchImages = () => {
-    API(this.state.req, this.state.page, this.setImages);
-    console.log('fetch');
-  };
-
-  setImages = (images, status) => {
-    this.setState({ images: images, status: status });
-  };
-
-  getImages = (newImages, status) => {
-    this.setState({ images: [...this.state.images, ...newImages], status: status });
-  };
-
-  nexpPage = () => {
-    this.setState({ page: this.state.page + 1 });
-  };
-
-  togleModal = (webformatURL, tags) => {
-    this.setState({
-      showModal: !this.state.showModal,
-      modalImg: { img: webformatURL, descr: tags },
+    setStatus(statuses.PENDING);
+    API(req, page).then(([data, status]) => {
+      setImages([...images, ...data.hits]);
+      if (images.length === data.totalHits) {
+        setNotLastPage(false);
+      }
+      console.log(notLastPage);
+      setStatus(status);
+      if (page > 1) {
+        window.scrollTo({
+          top: document.documentElement.scrollHeight,
+          behavior: 'smooth',
+        });
+      }
     });
-    // console.log(e);
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [req, page]);
 
-  render() {
-    let loadMore;
-    if (this.state.images.length >= 12) {
-      loadMore = true;
-    } else loadMore = false;
-
-    const { images, status } = this.state;
-
-    return (
-      <div className="App">
-        <Searchbar onSubmit={this.handleSubmit} />
-        {status === statuses.RESOLVED && (
-          <ImageGallery cards={images} openModal={this.togleModal} />
-        )}
-        {status === statuses.PENDING && <LoaderEl />}
-        {status === statuses.REJECTED && <h2>Something went wrong. Please try again</h2>}
-        {loadMore && <Button onClick={this.nexpPage} />}
-        {this.state.showModal && (
-          <Modal
-            img={this.state.modalImg.img}
-            description={this.state.modalImg.descr}
-            closeModal={this.togleModal}
-          />
-        )}
-      </div>
-    );
+  function togleModal(webformatURL, tags) {
+    setShowModal(!showModal);
+    setModalImg({ img: webformatURL, descr: tags });
   }
-}
 
-export default App;
+  let loadMore;
+  if (images.length >= 12) {
+    loadMore = true;
+  } else loadMore = false;
+
+  return (
+    <div className="App">
+      <Searchbar onSubmit={handleSubmit} />
+      {status === statuses.RESOLVED && <ImageGallery cards={images} openModal={togleModal} />}
+      {status === statuses.PENDING && <LoaderEl />}
+      {status === statuses.REJECTED && <h2>Something went wrong. Please try again</h2>}
+      {loadMore && notLastPage && (
+        <Button
+          onClick={() => {
+            setPage(page + 1);
+          }}
+        />
+      )}
+      {showModal && (
+        <Modal img={modalImg.img} description={modalImg.descr} closeModal={togleModal} />
+      )}
+    </div>
+  );
+}
