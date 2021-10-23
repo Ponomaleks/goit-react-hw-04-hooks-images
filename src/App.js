@@ -19,10 +19,9 @@ export default function App() {
   const [req, setReq] = useState('');
   const [page, setPage] = useState(1);
   const [images, setImages] = useState([]);
-  const [status, setStatus] = useState('mount');
+  const [status, setStatus] = useState(statuses.IDLE);
   const [showModal, setShowModal] = useState(false);
   const [modalImg, setModalImg] = useState(null);
-
   const [notLastPage, setNotLastPage] = useState(true);
 
   const handleSubmit = request => {
@@ -34,28 +33,37 @@ export default function App() {
   };
 
   useEffect(() => {
-    if (status === 'mount') {
-      setStatus(statuses.IDLE);
-      return;
+    if (req !== '') {
+      setStatus(statuses.PENDING);
+      API(req, 1).then(([data, status]) => {
+        setImages([...images, ...data.hits]);
+        setStatus(status);
+        // console.log(data);
+        if (images.length === data.totalHits) {
+          setNotLastPage(false);
+        } else setNotLastPage(true);
+      });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [req]);
 
-    setStatus(statuses.PENDING);
-    API(req, page).then(([data, status]) => {
-      setImages([...images, ...data.hits]);
-      if (images.length === data.totalHits) {
-        setNotLastPage(false);
-      }
-      console.log(notLastPage);
-      setStatus(status);
-      if (page > 1) {
+  useEffect(() => {
+    if (page > 1) {
+      API(req, page).then(([data, status]) => {
+        setImages([...images, ...data.hits]);
+        if (images.length === data.totalHits) {
+          setNotLastPage(false);
+        }
+        setStatus(status);
+
         window.scrollTo({
           top: document.documentElement.scrollHeight,
           behavior: 'smooth',
         });
-      }
-    });
+      });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [req, page]);
+  }, [page]);
 
   function togleModal(webformatURL, tags) {
     setShowModal(!showModal);
